@@ -152,7 +152,7 @@ You MUST output your findings as structured JSON with this exact schema:
     "high_severity": 1,
     "medium_severity": 0,
     "low_severity": 0,
-    "review_completed": true,
+    "review_completed": true
   }}
 }}
 
@@ -315,7 +315,7 @@ You MUST output your findings as structured JSON with this exact schema:
     "high_severity": 1,
     "medium_severity": 0,
     "low_severity": 0,
-    "review_completed": true,
+    "review_completed": true
   }}
 }}
 
