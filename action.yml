@@ -142,7 +142,7 @@ runs:
           elif [ "$ENABLE_CLAUDECODE" == "true" ] && [ "$RUN_EVERY_COMMIT" != "true" ] && [ -f ".claudecode-marker/marker.json" ]; then
             echo "ClaudeCode has already run on PR #$PR_NUMBER (found marker file), forcing disable to avoid false positives"
             ENABLE_CLAUDECODE="false"
-          elif [ "$RUN_EVERY_COMMIT" == "true" ] && [ -f ".claudecode-marker/marker.json" ]; then
+          elif [ "$ENABLE_CLAUDECODE" == "true" ] && [ "$RUN_EVERY_COMMIT" == "true" ] && [ -f ".claudecode-marker/marker.json" ]; then
             echo "ClaudeCode has already run on PR #$PR_NUMBER but run-every-commit is enabled, running again"
           elif [ "$ENABLE_CLAUDECODE" == "true" ]; then
             echo "ClaudeCode will run for PR #$PR_NUMBER (first run)"
