@@ -41,7 +41,10 @@ claudecode/
 ## Testing
 
 ```bash
+# Python tests
 pytest claudecode -v  # Run all tests (177 passing)
+# JavaScript tests
+~/.bun/bin/bun test scripts/comment-pr-findings.bun.test.js
 ```
 
 ## Code Style
