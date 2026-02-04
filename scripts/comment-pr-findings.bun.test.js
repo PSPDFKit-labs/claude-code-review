@@ -849,7 +849,7 @@ describe('comment-pr-findings.js', () => {
   });
 
   describe('Stale Review Handling', () => {
-    test('should dismiss stale reviews when DISMISS_STALE_REVIEWS is true', async () => {
+    test('should only dismiss own bot reviews when DISMISS_STALE_REVIEWS is true', async () => {
       process.env.DISMISS_STALE_REVIEWS = 'true';
 
       const mockFindings = [{
@@ -863,10 +863,16 @@ describe('comment-pr-findings.js', () => {
       const mockPrFiles = [{ filename: 'test.py', patch: '@@ -10,1 +10,1 @@' }];
 
       const mockReviews = [
-        { id: 101, state: 'CHANGES_REQUESTED', user: { type: 'Bot' } },
-        { id: 102, state: 'APPROVED', user: { type: 'Bot' } },
-        { id: 103, state: 'COMMENTED', user: { type: 'Bot' } }, // Should not be dismissed
-        { id: 104, state: 'CHANGES_REQUESTED', user: { type: 'User' } } // Should not be dismissed
+        // Our reviews - should be dismissed
+        { id: 101, state: 'CHANGES_REQUESTED', user: { type: 'Bot' }, body: 'Found 3 security issues. Please address the high-severity issues before merging.' },
+        { id: 102, state: 'APPROVED', user: { type: 'Bot' }, body: 'No issues found. Changes look good.' },
+        // Other bot reviews - should NOT be dismissed
+        { id: 103, state: 'APPROVED', user: { type: 'Bot' }, body: 'Dependabot has approved this PR.' },
+        { id: 104, state: 'CHANGES_REQUESTED', user: { type: 'Bot' }, body: 'Renovate: This PR has conflicts.' },
+        // COMMENTED state - should NOT be dismissed
+        { id: 105, state: 'COMMENTED', user: { type: 'Bot' }, body: 'Found 1 security issue.' },
+        // User review - should NOT be dismissed
+        { id: 106, state: 'CHANGES_REQUESTED', user: { type: 'User' }, body: 'Please fix the typo.' }
       ];
 
       readFileSyncSpy.mockImplementation((path) => {
@@ -907,10 +913,14 @@ describe('comment-pr-findings.js', () => {
 
       await import('./comment-pr-findings.js');
 
+      // Only our reviews should be dismissed
       expect(dismissedReviews).toContain(101);
       expect(dismissedReviews).toContain(102);
-      expect(dismissedReviews).not.toContain(103); // COMMENTED state
-      expect(dismissedReviews).not.toContain(104); // User review
+      // Other bot reviews should NOT be dismissed
+      expect(dismissedReviews).not.toContain(103); // Dependabot
+      expect(dismissedReviews).not.toContain(104); // Renovate
+      expect(dismissedReviews).not.toContain(105); // COMMENTED state
+      expect(dismissedReviews).not.toContain(106); // User review
       expect(consoleLogSpy).toHaveBeenCalledWith('Dismissed stale review 101');
       expect(consoleLogSpy).toHaveBeenCalledWith('Dismissed stale review 102');
     });

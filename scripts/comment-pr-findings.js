@@ -88,7 +88,31 @@ function addReactionsToReview(reviewId) {
   }
 }
 
-// Helper function to dismiss stale bot reviews
+// Check if a review was posted by this action
+function isOwnReview(review) {
+  if (!review.body) return false;
+
+  // Check for our review summary patterns
+  const ownPatterns = [
+    'No issues found. Changes look good.',
+    /^Found \d+ .+ issues?\./,
+    'Please address the high-severity issues before merging.',
+    'Consider addressing the suggestions in the comments.',
+    'Minor suggestions noted in comments.'
+  ];
+
+  for (const pattern of ownPatterns) {
+    if (pattern instanceof RegExp) {
+      if (pattern.test(review.body)) return true;
+    } else {
+      if (review.body.includes(pattern)) return true;
+    }
+  }
+
+  return false;
+}
+
+// Helper function to dismiss stale bot reviews from this action only
 function dismissStaleReviews() {
   try {
     const reviews = ghApi(`/repos/${context.repo.owner}/${context.repo.repo}/pulls/${context.issue.number}/reviews`);
@@ -101,8 +125,9 @@ function dismissStaleReviews() {
     for (const review of reviews) {
       const isDismissible = review.state === 'APPROVED' || review.state === 'CHANGES_REQUESTED';
       const isBot = review.user && review.user.type === 'Bot';
+      const isOwn = isOwnReview(review);
 
-      if (isBot && isDismissible) {
+      if (isBot && isDismissible && isOwn) {
         try {
           ghApi(
             `/repos/${context.repo.owner}/${context.repo.repo}/pulls/${context.issue.number}/reviews/${review.id}/dismissals`,
