@@ -144,8 +144,7 @@ async function run() {
       let commentBody = `🤖 **Code Review Finding: ${title}**\n\n`;
       commentBody += `**Severity:** ${severity}\n`;
       commentBody += `**Category:** ${category}\n`;
-      commentBody += `**Tool:** ClaudeCode AI Review\n`;
-      
+
       const extraMetadata = (finding.extra && finding.extra.metadata) || {};
 
       // Add impact/exploit scenario if available
@@ -153,11 +152,17 @@ async function run() {
         const impact = finding.impact || finding.exploit_scenario || extraMetadata.impact || extraMetadata.exploit_scenario;
         commentBody += `\n**Impact:** ${impact}\n`;
       }
-      
+
       // Add recommendation if available
-      if (finding.recommendation || extraMetadata.recommendation) {
-        const recommendation = finding.recommendation || extraMetadata.recommendation;
+      const recommendation = finding.recommendation || extraMetadata.recommendation;
+      if (recommendation) {
         commentBody += `\n**Recommendation:** ${recommendation}\n`;
+      }
+
+      // Add GitHub suggestion block if a code suggestion is available
+      const suggestion = finding.suggestion || extraMetadata.suggestion;
+      if (suggestion) {
+        commentBody += `\n\`\`\`suggestion\n${suggestion}\n\`\`\`\n`;
       }
       
       // Prepare the review comment

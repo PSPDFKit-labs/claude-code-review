@@ -180,6 +180,7 @@ You MUST output your findings as structured JSON with this exact schema:
       "description": "What is wrong and where it happens",
       "impact": "Concrete impact or failure mode (use exploit scenario for security issues)",
       "recommendation": "Actionable fix or mitigation",
+      "suggestion": "The exact replacement code for line 42 (optional, only if a simple single-line fix exists)",
       "confidence": 0.95
     }}
   ],
@@ -343,6 +344,7 @@ You MUST output your findings as structured JSON with this exact schema:
       "description": "What is wrong and where it happens",
       "impact": "Concrete impact or failure mode",
       "recommendation": "Actionable fix or mitigation",
+      "suggestion": "The exact replacement code for line 42 (optional, only if a simple single-line fix exists)",
       "confidence": 0.95
     }}
   ],
@@ -506,6 +508,7 @@ You MUST output your findings as structured JSON with this exact schema:
       "description": "What is wrong and where it happens",
       "impact": "Exploit scenario or concrete impact",
       "recommendation": "Actionable fix or mitigation",
+      "suggestion": "The exact replacement code for line 42 (optional, only if a simple single-line fix exists)",
       "confidence": 0.95
     }}
   ],
