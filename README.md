@@ -1,4 +1,4 @@
-# Claude Code Reviewer
+# Nutrient Code Reviewer
 
 An AI-powered code review GitHub Action using Claude to analyze code changes. Uses a unified multi-agent approach for both code quality (correctness, reliability, performance, maintainability, testing) and security in a single pass. This action provides intelligent, context-aware review for pull requests using Anthropic's Claude Code tool for deep semantic analysis.
 
@@ -27,6 +27,7 @@ permissions:
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, labeled]
 
 jobs:
   review:
@@ -63,6 +64,9 @@ This action is not hardened against prompt injection attacks and should only be 
 | `false-positive-filtering-instructions` | Path to custom false positive filtering instructions text file | None | No |
 | `custom-review-instructions` | Path to custom code review instructions text file to append to the audit prompt | None | No |
 | `custom-security-scan-instructions` | Path to custom security scan instructions text file to append to the security section | None | No |
+| `dismiss-stale-reviews` | Dismiss previous bot reviews when posting a new review (useful for follow-up commits) | `true` | No |
+| `skip-draft-prs` | Skip code review on draft pull requests | `true` | No |
+| `require-label` | Only run review if this label is present. Leave empty to review all PRs. Add `labeled` to your workflow `pull_request` types to trigger on label addition. | None | No |
 
 ### Action Outputs
 
@@ -149,6 +153,37 @@ The default command is designed to work well in most cases, but it can also be c
 ## Custom Scanning Configuration
 
 It is also possible to configure custom scanning and false positive filtering instructions, see the [`docs/`](docs/) folder for more details.
+
+## Using a Custom GitHub App
+
+By default, reviews are posted as "github-actions[bot]". To use a custom name and avatar:
+
+1. **Create a GitHub App** at `https://github.com/settings/apps/new`
+   - Set your desired name and avatar
+   - Permissions: Pull requests (Read & Write), Contents (Read)
+   - Uncheck "Webhook > Active"
+
+2. **Store secrets** in your repository:
+   - `APP_ID` - The App ID from settings
+   - `APP_PRIVATE_KEY` - Generated private key
+
+3. **Update your workflow**:
+   ```yaml
+   - name: Generate App Token
+     id: app-token
+     uses: actions/create-github-app-token@v1
+     with:
+       app-id: ${{ secrets.APP_ID }}
+       private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+   - uses: PSPDFKit-labs/claude-code-review@main
+     with:
+       claude-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+     env:
+       GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+   ```
+
+Review dismissal works automatically with custom apps since reviews are identified by content, not bot username.
 
 ## Testing
 
