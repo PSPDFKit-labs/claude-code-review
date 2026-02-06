@@ -447,13 +447,16 @@ class TestDiffSizeLimits:
     def test_max_diff_lines_env_parsing(self):
         """Test that MAX_DIFF_LINES environment variable is parsed correctly."""
         import os
+        from unittest.mock import patch
 
-        # Test default value
-        max_lines_str = os.environ.get('MAX_DIFF_LINES', '5000')
-        try:
-            max_lines = int(max_lines_str)
-        except ValueError:
-            max_lines = 5000
+        # Test default value when env var is not set
+        with patch.dict('os.environ', {}, clear=False):
+            os.environ.pop('MAX_DIFF_LINES', None)
+            max_lines_str = os.environ.get('MAX_DIFF_LINES', '5000')
+            try:
+                max_lines = int(max_lines_str)
+            except ValueError:
+                max_lines = 5000
 
         assert max_lines == 5000  # Default when not set
 
