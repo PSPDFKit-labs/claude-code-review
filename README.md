@@ -112,6 +112,11 @@ This action is not hardened against prompt injection attacks and should only be 
 | `upload-results` | Whether to upload results as artifacts | `true` | No |
 | `exclude-directories` | Comma-separated list of directories to exclude from scanning | None | No |
 | `claude-model` | Claude [model name](https://docs.anthropic.com/en/docs/about-claude/models/overview#model-names) to use. Defaults to Opus 4.5. | `claude-opus-4-5-20251101` | No |
+| `model-triage` | Model used for triage phase (skip/continue decision). | `claude-3-5-haiku-20241022` | No |
+| `model-compliance` | Model used for CLAUDE.md compliance phase. | `claude-sonnet-4-20250514` | No |
+| `model-quality` | Model used for code quality phase. | `claude-opus-4-5-20251101` | No |
+| `model-security` | Model used for security phase. | `claude-opus-4-5-20251101` | No |
+| `model-validation` | Model used for finding validation phase. | `claude-sonnet-4-20250514` | No |
 | `claudecode-timeout` | Timeout for ClaudeCode analysis in minutes | `20` | No |
 | `run-every-commit` | Run ClaudeCode on every commit (skips cache check). Warning: May increase false positives on PRs with many commits. **Deprecated**: Use `trigger-on-commit` instead. | `false` | No |
 | `trigger-on-open` | Run review when PR is first opened | `true` | No |
@@ -127,6 +132,7 @@ This action is not hardened against prompt injection attacks and should only be 
 | `skip-draft-prs` | Skip code review on draft pull requests | `true` | No |
 | `app-slug` | GitHub App slug for bot mention detection. If using `actions/create-github-app-token@v1.9.0+`, pass `${{ steps.app-token.outputs.app-slug }}`. Otherwise defaults to `github-actions`. | `github-actions` | No |
 | `require-label` | Only run review if this label is present. Leave empty to review all PRs. Add `labeled` to your workflow `pull_request` types to trigger on label addition. | None | No |
+| `max-diff-lines` | Maximum inline diff lines included as prompt anchor; repository tool reads are still required in all cases. | `5000` | No |
 
 ### Action Outputs
 
@@ -294,11 +300,12 @@ claudecode/
 
 ### Workflow
 
-1. **PR Analysis**: When a pull request is opened, Claude analyzes the diff to understand what changed
-2. **Contextual Review**: Claude examines the code changes in context, understanding the purpose and potential impacts
-3. **Finding Generation**: Issues are identified with detailed explanations, severity ratings, and remediation guidance
-4. **False Positive Filtering**: Advanced filtering removes low-impact or false positive prone findings to reduce noise
-5. **PR Comments**: Findings are posted as review comments on the specific lines of code
+1. **Triage Phase**: A fast triage pass determines if review should proceed.
+2. **Context Discovery**: Claude discovers relevant CLAUDE.md files, hotspots, and risky code paths.
+3. **Specialist Review**: Dedicated compliance, quality, and security phases run with configurable models.
+4. **Validation Phase**: Candidate findings are validated and deduplicated for high signal.
+5. **False Positive Filtering**: Additional filtering removes low-impact noise.
+6. **PR Comments**: Findings are posted as review comments on specific lines in the PR.
 
 ## Review Capabilities
 

@@ -33,6 +33,31 @@ inputs:
     required: false
     default: ''
 
+  model-triage:
+    description: 'Model for triage phase'
+    required: false
+    default: 'claude-3-5-haiku-20241022'
+
+  model-compliance:
+    description: 'Model for CLAUDE.md compliance phase'
+    required: false
+    default: 'claude-sonnet-4-20250514'
+
+  model-quality:
+    description: 'Model for code quality phase'
+    required: false
+    default: 'claude-opus-4-5-20251101'
+
+  model-security:
+    description: 'Model for security phase'
+    required: false
+    default: 'claude-opus-4-5-20251101'
+
+  model-validation:
+    description: 'Model for validation phase'
+    required: false
+    default: 'claude-sonnet-4-20250514'
+
   run-every-commit:
     description: 'DEPRECATED: Use trigger-on-commit instead. Run ClaudeCode on every commit (skips cache check). Warning: This may lead to more false positives on PRs with many commits as the AI analyzes the same code multiple times.'
     required: false
@@ -351,6 +376,11 @@ runs:
         CUSTOM_REVIEW_INSTRUCTIONS: ${{ inputs.custom-review-instructions }}
         CUSTOM_SECURITY_SCAN_INSTRUCTIONS: ${{ inputs.custom-security-scan-instructions }}
         CLAUDE_MODEL: ${{ inputs.claude-model }}
+        MODEL_TRIAGE: ${{ inputs.model-triage }}
+        MODEL_COMPLIANCE: ${{ inputs.model-compliance }}
+        MODEL_QUALITY: ${{ inputs.model-quality }}
+        MODEL_SECURITY: ${{ inputs.model-security }}
+        MODEL_VALIDATION: ${{ inputs.model-validation }}
         CLAUDECODE_TIMEOUT: ${{ inputs.claudecode-timeout }}
         MAX_DIFF_LINES: ${{ inputs.max-diff-lines }}
         ACTION_PATH: ${{ github.action_path }}
