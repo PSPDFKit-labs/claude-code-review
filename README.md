@@ -111,12 +111,12 @@ This action is not hardened against prompt injection attacks and should only be 
 | `comment-pr` | Whether to comment on PRs with findings | `true` | No |
 | `upload-results` | Whether to upload results as artifacts | `true` | No |
 | `exclude-directories` | Comma-separated list of directories to exclude from scanning | None | No |
-| `claude-model` | Claude [model name](https://docs.anthropic.com/en/docs/about-claude/models/overview#model-names) to use. Defaults to Opus 4.5. | `claude-opus-4-5-20251101` | No |
-| `model-triage` | Model used for triage phase (skip/continue decision). | `claude-3-5-haiku-20241022` | No |
-| `model-compliance` | Model used for CLAUDE.md compliance phase. | `claude-sonnet-4-20250514` | No |
-| `model-quality` | Model used for code quality phase. | `claude-opus-4-5-20251101` | No |
-| `model-security` | Model used for security phase. | `claude-opus-4-5-20251101` | No |
-| `model-validation` | Model used for finding validation phase. | `claude-sonnet-4-20250514` | No |
+| `claude-model` | Claude [model name](https://docs.anthropic.com/en/docs/about-claude/models/overview#model-names) to use. Defaults to Opus 4.6. | `claude-opus-4-6` | No |
+| `model-triage` | Model used for triage phase (skip/continue decision). | `claude-haiku-4-5` | No |
+| `model-compliance` | Model used for CLAUDE.md compliance phase. | `claude-sonnet-4-5` | No |
+| `model-quality` | Model used for code quality phase. | `claude-opus-4-6` | No |
+| `model-security` | Model used for security phase. | `claude-opus-4-6` | No |
+| `model-validation` | Model used for finding validation phase. | `claude-sonnet-4-5` | No |
 | `claudecode-timeout` | Timeout for ClaudeCode analysis in minutes | `20` | No |
 | `run-every-commit` | Run ClaudeCode on every commit (skips cache check). Warning: May increase false positives on PRs with many commits. **Deprecated**: Use `trigger-on-commit` instead. | `false` | No |
 | `trigger-on-open` | Run review when PR is first opened | `true` | No |

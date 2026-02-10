@@ -1,6 +1,6 @@
 ---
 name: security
-model: claude-opus-4-5-20251101
+model: claude-opus-4-6
 description: Security specialist for exploitable vulnerabilities
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: compliance
-model: claude-sonnet-4-20250514
+model: claude-sonnet-4-5
 description: CLAUDE.md compliance specialist
 ---
 
