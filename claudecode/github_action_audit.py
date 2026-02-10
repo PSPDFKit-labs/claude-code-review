@@ -314,7 +314,7 @@ class SimpleClaudeRunner:
                         error_details += f"Stderr: {result.stderr}\n"
                         error_details += f"Stdout: {result.stdout[:500]}..."
                         return False, error_details, {}
-                    time.sleep(5 * attempt)
+                    time.sleep(5 * (attempt + 1))
                     continue
 
                 success, parsed_result = parse_json_with_fallbacks(result.stdout, "Claude Code output")
@@ -348,9 +348,9 @@ class SimpleClaudeRunner:
         except Exception as e:
             return False, f"Claude Code execution error: {str(e)}", {}
 
-    def run_code_review(self, repo_dir: Path, prompt: str) -> Tuple[bool, str, Dict[str, Any]]:
+    def run_code_review(self, repo_dir: Path, prompt: str, model: Optional[str] = None) -> Tuple[bool, str, Dict[str, Any]]:
         """Run code review prompt and normalize to findings payload."""
-        success, error_msg, parsed = self.run_prompt(repo_dir, prompt, model=DEFAULT_CLAUDE_MODEL)
+        success, error_msg, parsed = self.run_prompt(repo_dir, prompt, model=model or DEFAULT_CLAUDE_MODEL)
         if not success:
             return False, error_msg, {}
         if isinstance(parsed, dict) and 'findings' in parsed:

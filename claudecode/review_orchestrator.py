@@ -67,7 +67,11 @@ class ReviewOrchestrator:
         if hasattr(self.claude_runner, "run_prompt"):
             raw_result = self.claude_runner.run_prompt(repo_dir, prompt, model=model)
         if not (isinstance(raw_result, tuple) and len(raw_result) == 3) and hasattr(self.claude_runner, "run_code_review"):
-            raw_result = self.claude_runner.run_code_review(repo_dir, prompt)
+            try:
+                raw_result = self.claude_runner.run_code_review(repo_dir, prompt, model=model)
+            except TypeError:
+                # Backward compatibility for legacy mocks/runners that don't accept model parameter.
+                raw_result = self.claude_runner.run_code_review(repo_dir, prompt)
         if not (isinstance(raw_result, tuple) and len(raw_result) == 3):
             return False, {}, f"Invalid runner response for {phase_name}"
 
@@ -217,7 +221,10 @@ class ReviewOrchestrator:
             return False, {}, f"Validation phase failed: {err_v}"
 
         validated: List[Dict[str, Any]] = []
-        decisions = validation_result.get("validated_findings", [])
+        has_validation_output = isinstance(validation_result, dict) and "validated_findings" in validation_result
+        decisions = validation_result.get("validated_findings", []) if isinstance(validation_result, dict) else []
+        if not isinstance(decisions, list):
+            decisions = []
         for decision in decisions:
             if not isinstance(decision, dict):
                 continue
@@ -235,10 +242,9 @@ class ReviewOrchestrator:
                 finding["confidence"] = float(confidence)
                 validated.append(finding)
 
-        # Fallback: keep merged findings if validation returned no decisions
-        if decisions and not validated:
-            validated = []
-        elif not decisions:
+        # If validator did not return decisions at all, preserve candidates.
+        # If it explicitly returned validated_findings (including empty list), trust validator output.
+        if not has_validation_output:
             validated = all_candidates
 
         # Apply existing filtering pipeline
