@@ -159,7 +159,7 @@ index 8901234..5678901 100644
             }
         ]
 
-        # Reactions response for the bot comment - one +1 from a human
+        # Reactions response for the bot comment - multiple reactions from humans
         reactions_response = Mock()
         reactions_response.status_code = 200
         reactions_response.json.return_value = [
@@ -173,6 +173,28 @@ index 8901234..5678901 100644
                 },
                 'content': '+1',
                 'created_at': '2024-01-15T14:00:00Z'
+            },
+            {
+                'id': 2,
+                'node_id': 'MDg6UmVhY3Rpb24y',
+                'user': {
+                    'login': 'teammate',
+                    'id': 67890,
+                    'type': 'User'
+                },
+                'content': 'eyes',
+                'created_at': '2024-01-15T14:05:00Z'
+            },
+            {
+                'id': 3,
+                'node_id': 'MDg6UmVhY3Rpb24z',
+                'user': {
+                    'login': 'lead',
+                    'id': 11111,
+                    'type': 'User'
+                },
+                'content': 'rocket',
+                'created_at': '2024-01-15T14:10:00Z'
             }
         ]
 

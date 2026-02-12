@@ -146,6 +146,33 @@ class TestFormatPrCommentsForPrompt:
         # Should show 2 thumbs down
         assert "👎 2" in result
 
+    def test_all_reaction_types(self):
+        """Test that all GitHub reaction types are converted to emojis."""
+        bot_comment = _make_bot_comment(1)
+        reactions = {
+            '+1': 3,
+            '-1': 1,
+            'laugh': 2,
+            'confused': 1,
+            'heart': 4,
+            'hooray': 2,
+            'rocket': 1,
+            'eyes': 3,
+        }
+        threads = [_make_thread(bot_comment, reactions=reactions)]
+
+        result = format_pr_comments_for_prompt(threads)
+
+        # All reactions should be converted to emojis
+        assert "👍 3" in result
+        assert "👎 1" in result
+        assert "😄 2" in result
+        assert "😕 1" in result
+        assert "❤️ 4" in result
+        assert "🎉 2" in result
+        assert "🚀 1" in result
+        assert "👀 3" in result
+
     def test_truncate_long_replies(self):
         """Test that very long reply threads are truncated."""
         bot_comment = _make_bot_comment(1)

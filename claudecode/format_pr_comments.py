@@ -14,6 +14,18 @@ MAX_REPLIES_PER_THREAD = 5
 # Bot comment marker pattern
 BOT_COMMENT_MARKER = "🤖 **Code Review Finding:"
 
+# GitHub reaction content to emoji mapping
+REACTION_EMOJI_MAP = {
+    '+1': '👍',
+    '-1': '👎',
+    'laugh': '😄',
+    'confused': '😕',
+    'heart': '❤️',
+    'hooray': '🎉',
+    'rocket': '🚀',
+    'eyes': '👀',
+}
+
 
 def is_bot_comment(comment: Dict[str, Any]) -> bool:
     """Check if a comment was posted by this bot.
@@ -223,17 +235,11 @@ def _format_threads_for_prompt(threads: List[Dict[str, Any]]) -> str:
 
         # Add user reactions (excluding bot's own reactions)
         if reactions:
-            thumbs_up = reactions.get('+1', 0)
-            thumbs_down = reactions.get('-1', 0)
-            other_reactions = {k: v for k, v in reactions.items() if k not in ['+1', '-1']}
-
             reaction_parts = []
-            if thumbs_up > 0:
-                reaction_parts.append(f"👍 {thumbs_up}")
-            if thumbs_down > 0:
-                reaction_parts.append(f"👎 {thumbs_down}")
-            for reaction, count in other_reactions.items():
-                reaction_parts.append(f"{reaction} {count}")
+            for reaction, count in reactions.items():
+                if count > 0:
+                    emoji = REACTION_EMOJI_MAP.get(reaction, reaction)
+                    reaction_parts.append(f"{emoji} {count}")
 
             if reaction_parts:
                 lines.append(f"  User Reactions: {', '.join(reaction_parts)}")
