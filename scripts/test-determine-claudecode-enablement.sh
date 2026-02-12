@@ -403,6 +403,46 @@ test_default_values() {
     teardown_test
 }
 
+test_issue_comment_with_required_label_present() {
+    echo "Test: Issue comment (mention) with required label present"
+    setup_test
+
+    export GITHUB_EVENT_NAME="issue_comment"
+    export PR_NUMBER="123"
+    export GITHUB_SHA="abc123"
+    export TRIGGER_TYPE="mention"
+    export TRIGGER_ON_MENTION="true"
+    export IS_PR="true"
+    export REQUIRE_LABEL="ready-for-review"
+    export PR_LABELS='["bug", "ready-for-review", "enhancement"]'
+
+    run_script
+
+    assert_equals "true" "$ENABLE_CLAUDECODE" "Should enable for issue_comment when required label is present"
+
+    teardown_test
+}
+
+test_issue_comment_with_required_label_missing() {
+    echo "Test: Issue comment (mention) with required label missing"
+    setup_test
+
+    export GITHUB_EVENT_NAME="issue_comment"
+    export PR_NUMBER="123"
+    export GITHUB_SHA="abc123"
+    export TRIGGER_TYPE="mention"
+    export TRIGGER_ON_MENTION="true"
+    export IS_PR="true"
+    export REQUIRE_LABEL="ready-for-review"
+    export PR_LABELS='["bug", "enhancement"]'
+
+    run_script
+
+    assert_equals "false" "$ENABLE_CLAUDECODE" "Should disable for issue_comment when required label is missing"
+
+    teardown_test
+}
+
 # Run all tests
 echo "========================================"
 echo "Testing: determine-claudecode-enablement.sh"
@@ -426,6 +466,8 @@ test_skip_draft_prs_enabled
 test_skip_draft_prs_disabled
 test_issue_comment_not_on_pr
 test_default_values
+test_issue_comment_with_required_label_present
+test_issue_comment_with_required_label_missing
 
 echo ""
 echo "========================================"

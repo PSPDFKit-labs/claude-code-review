@@ -164,7 +164,7 @@ When multiple workflow triggers fire simultaneously (e.g., a new commit + a labe
 name: Code Review
 
 concurrency:
-  group: code-review-${{ github.event.pull_request.number }}
+  group: code-review-${{ github.event.pull_request.number || github.event.issue.number }}
   cancel-in-progress: true  # Cancels older runs when new commits arrive
 
 on:
@@ -188,6 +188,7 @@ jobs:
 - **Prevents simultaneous runs**: Only one review runs at a time per PR
 - **Cancels older reviews**: When a new commit arrives, the previous review is cancelled
 - **Reduces costs**: Workflow cancellation stops execution before new API calls are made
+- **Handles multiple event types**: The expression `github.event.pull_request.number || github.event.issue.number` ensures both `pull_request` and `issue_comment` events are grouped correctly by PR number
 
 **Important**: While cancellation significantly reduces costs, API requests that are already in-flight to Anthropic will complete and be charged. This is a limitation of how API cancellation works—you cannot stop requests that have already been sent.
 
@@ -197,7 +198,7 @@ If you prefer to keep the older run and cancel newer ones (queue behavior):
 
 ```yaml
 concurrency:
-  group: code-review-${{ github.event.pull_request.number }}
+  group: code-review-${{ github.event.pull_request.number || github.event.issue.number }}
   cancel-in-progress: false  # Queues new runs instead
 ```
 

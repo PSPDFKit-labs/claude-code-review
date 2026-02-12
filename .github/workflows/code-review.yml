@@ -1,7 +1,7 @@
 name: Code Review
 
 concurrency:
-  group: code-review-${{ github.event.pull_request.number }}
+  group: code-review-${{ github.event.pull_request.number || github.event.issue.number }}
   cancel-in-progress: true  # Cancels older runs when new commits arrive
 
 on:

@@ -152,8 +152,24 @@ runs:
             exit 1
           fi
 
+          # Extract PR labels (array of label names)
+          if ! PR_LABELS=$(echo "$PR_DATA" | jq -c '[.labels[].name]' 2>&1); then
+            echo "Error: Failed to parse PR labels from API response"
+            echo "is_pr=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+          # Extract draft status
+          if ! IS_DRAFT=$(echo "$PR_DATA" | jq -r '.draft' 2>&1); then
+            echo "Error: Failed to parse PR draft status from API response"
+            echo "is_pr=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
           echo "pr_number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
           echo "pr_sha=$PR_HEAD_SHA" >> $GITHUB_OUTPUT
+          echo "pr_labels=$PR_LABELS" >> $GITHUB_OUTPUT
+          echo "is_draft=$IS_DRAFT" >> $GITHUB_OUTPUT
           echo "is_pr=true" >> $GITHUB_OUTPUT
 
           echo "Issue comment is on PR #${{ github.event.issue.number }} with SHA $PR_HEAD_SHA"
@@ -230,10 +246,6 @@ runs:
               TRIGGER_TYPE="label"
               ;;
           esac
-        elif [ "$EVENT_NAME" == "pull_request_review" ]; then
-          if [ "$EVENT_ACTION" == "submitted" ]; then
-            TRIGGER_TYPE="review_request"
-          fi
         elif [ "$EVENT_NAME" == "issue_comment" ]; then
           # Check if comment mentions this specific bot
           # Escape special regex characters in bot login to prevent regex injection
@@ -262,9 +274,9 @@ runs:
         TRIGGER_ON_REVIEW_REQUEST: ${{ inputs.trigger-on-review-request }}
         TRIGGER_ON_MENTION: ${{ inputs.trigger-on-mention }}
         SKIP_DRAFT_PRS: ${{ inputs.skip-draft-prs }}
-        IS_DRAFT: ${{ github.event.pull_request.draft }}
+        IS_DRAFT: ${{ github.event.pull_request.draft || steps.pr-info.outputs.is_draft }}
         REQUIRE_LABEL: ${{ inputs.require-label }}
-        PR_LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+        PR_LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) || steps.pr-info.outputs.pr_labels }}
         TRIGGER_TYPE: ${{ steps.trigger-detection.outputs.trigger_type }}
         IS_PR: ${{ steps.pr-info.outputs.is_pr }}
       run: |

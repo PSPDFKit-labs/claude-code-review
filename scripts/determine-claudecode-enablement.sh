@@ -84,7 +84,7 @@ fi
 
 # 2. Check SHA-based deduplication (with exception for explicit review requests)
 if [ "$ENABLE_CLAUDECODE" == "true" ] && [ -f ".claudecode-marker/marker.json" ]; then
-  if ! MARKER_SHA=$(jq -r '.sha // empty' .claudecode-marker/marker.json 2>&1); then
+  if ! MARKER_SHA=$(jq -r '.sha // empty' .claudecode-marker/marker.json 2>/dev/null); then
     echo "Warning: Failed to parse marker SHA, proceeding with review"
   elif [ -n "$MARKER_SHA" ] && [ "$MARKER_SHA" == "$GITHUB_SHA" ]; then
     # Allow explicit review requests to bypass deduplication (for appeal workflow)
