@@ -116,6 +116,7 @@ class TestMainFunction:
             'PR_NUMBER': '123',
             'GITHUB_TOKEN': 'test-token',
             'ENABLE_CLAUDE_FILTERING': 'true',
+            'ENABLE_HEURISTIC_FILTERING': 'true',
             'ANTHROPIC_API_KEY': 'test-api-key'
         }):
             with pytest.raises(SystemExit):
@@ -136,6 +137,7 @@ class TestMainFunction:
             'GITHUB_REPOSITORY': 'owner/repo',
             'PR_NUMBER': '123',
             'GITHUB_TOKEN': 'test-token',
+            'ENABLE_HEURISTIC_FILTERING': 'true',
             'ENABLE_CLAUDE_FILTERING': 'false'
         }):
             with pytest.raises(SystemExit):
@@ -422,6 +424,7 @@ class TestMainFunction:
                 'GITHUB_REPOSITORY': 'owner/repo',
                 'PR_NUMBER': '123',
                 'GITHUB_TOKEN': 'test-token',
+                'ENABLE_HEURISTIC_FILTERING': 'true',
                 'ENABLE_CLAUDE_FILTERING': 'false',  # Use simple filter
             }):
                 with pytest.raises(SystemExit):
@@ -483,6 +486,7 @@ class TestMainFunction:
                 'GITHUB_REPOSITORY': 'owner/repo',
                 'PR_NUMBER': '123',
                 'GITHUB_TOKEN': 'test-token',
+                'ENABLE_HEURISTIC_FILTERING': 'true',
                 'ENABLE_CLAUDE_FILTERING': 'false',  # Use simple filter
             }):
                 with pytest.raises(SystemExit) as exc_info:

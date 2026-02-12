@@ -105,6 +105,7 @@ class TestHelperFunctions:
         mock_filter.return_value = mock_filter_instance
         
         with patch.dict(os.environ, {
+            'ENABLE_HEURISTIC_FILTERING': 'true',
             'ENABLE_CLAUDE_FILTERING': 'true',
             'ANTHROPIC_API_KEY': 'test-key-123'
         }):
@@ -125,6 +126,7 @@ class TestHelperFunctions:
         mock_simple_filter.return_value = mock_filter_instance
         
         with patch.dict(os.environ, {
+            'ENABLE_HEURISTIC_FILTERING': 'true',
             'ENABLE_CLAUDE_FILTERING': 'false'
         }, clear=True):
             result = initialize_findings_filter()

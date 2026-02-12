@@ -58,3 +58,8 @@ jobs:
       run: |
         cd scripts
         bun test
+
+    - name: Run bash script tests
+      run: |
+        chmod +x scripts/test-determine-claudecode-enablement.sh
+        ./scripts/test-determine-claudecode-enablement.sh

@@ -1,8 +1,14 @@
 name: Code Review
 
+concurrency:
+  group: code-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true  # Cancels older runs when new commits arrive
+
 on:
   pull_request:
-    types: [opened, synchronize, reopened, labeled]
+    types: [opened, synchronize, reopened, labeled, review_requested]
+  issue_comment:
+    types: [created]
   workflow_dispatch:
 
 jobs:

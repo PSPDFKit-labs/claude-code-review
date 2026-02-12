@@ -484,14 +484,17 @@ def initialize_findings_filter(custom_filtering_instructions: Optional[str] = No
         ConfigurationError: If filter initialization fails
     """
     try:
+        # Check if we should use heuristic (pattern-based) filtering
+        use_heuristic_filtering = os.environ.get('ENABLE_HEURISTIC_FILTERING', 'true').lower() == 'true'
+
         # Check if we should use Claude API filtering
         use_claude_filtering = os.environ.get('ENABLE_CLAUDE_FILTERING', 'false').lower() == 'true'
         api_key = os.environ.get('ANTHROPIC_API_KEY')
-        
+
         if use_claude_filtering and api_key:
             # Use full filtering with Claude API
             return FindingsFilter(
-                use_hard_exclusions=True,
+                use_hard_exclusions=use_heuristic_filtering,
                 use_claude_filtering=True,
                 api_key=api_key,
                 custom_filtering_instructions=custom_filtering_instructions
@@ -499,7 +502,7 @@ def initialize_findings_filter(custom_filtering_instructions: Optional[str] = No
         else:
             # Fallback to filtering with hard rules only
             return FindingsFilter(
-                use_hard_exclusions=True,
+                use_hard_exclusions=use_heuristic_filtering,
                 use_claude_filtering=False
             )
     except Exception as e:

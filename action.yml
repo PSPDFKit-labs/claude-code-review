@@ -34,9 +34,10 @@ inputs:
     default: ''
 
   run-every-commit:
-    description: 'Run ClaudeCode on every commit (skips cache check). Warning: This may lead to more false positives on PRs with many commits as the AI analyzes the same code multiple times.'
+    description: 'DEPRECATED: Use trigger-on-commit instead. Run ClaudeCode on every commit (skips cache check). Warning: This may lead to more false positives on PRs with many commits as the AI analyzes the same code multiple times.'
     required: false
     default: 'false'
+    deprecationMessage: 'run-every-commit is deprecated. Use trigger-on-commit instead for more granular control over when reviews run.'
 
   false-positive-filtering-instructions:
     description: 'Path to custom false positive filtering instructions text file'
@@ -73,6 +74,36 @@ inputs:
     required: false
     default: '5000'
 
+  trigger-on-open:
+    description: 'Run review when PR is first opened'
+    required: false
+    default: 'true'
+
+  trigger-on-commit:
+    description: 'Run review on every new commit'
+    required: false
+    default: 'false'
+
+  trigger-on-review-request:
+    description: 'Run review when someone requests a review from the bot'
+    required: false
+    default: 'true'
+
+  trigger-on-mention:
+    description: 'Run review when bot is mentioned in a PR comment'
+    required: false
+    default: 'true'
+
+  enable-claude-filtering:
+    description: 'Use Claude API to validate and filter findings (reduces false positives but increases API costs)'
+    required: false
+    default: 'false'
+
+  enable-heuristic-filtering:
+    description: 'Use pattern-based heuristic rules to filter common false positives (e.g., stylistic issues, low-signal security warnings)'
+    required: false
+    default: 'true'
+
 outputs:
   findings-count:
     description: 'Number of code review findings'
@@ -98,83 +129,170 @@ runs:
       with:
         python-version: '3.x'
     
+    - name: Get PR info for issue_comment events
+      id: pr-info
+      if: github.event_name == 'issue_comment'
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ env.GITHUB_TOKEN || github.token }}
+      run: |
+        set -euo pipefail  # Exit on error, undefined vars, pipe failures
+
+        # Check if comment is on a PR
+        if [ -n "${{ github.event.issue.pull_request.url }}" ]; then
+          if ! PR_DATA=$(gh api "${{ github.event.issue.pull_request.url }}" 2>&1); then
+            echo "Error: Failed to fetch PR data from GitHub API"
+            echo "is_pr=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+          if ! PR_HEAD_SHA=$(echo "$PR_DATA" | jq -r '.head.sha' 2>&1); then
+            echo "Error: Failed to parse PR SHA from API response"
+            echo "is_pr=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+          echo "pr_number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
+          echo "pr_sha=$PR_HEAD_SHA" >> $GITHUB_OUTPUT
+          echo "is_pr=true" >> $GITHUB_OUTPUT
+
+          echo "Issue comment is on PR #${{ github.event.issue.number }} with SHA $PR_HEAD_SHA"
+        else
+          echo "is_pr=false" >> $GITHUB_OUTPUT
+          echo "Issue comment is not on a PR, skipping"
+        fi
+
+    - name: Checkout PR head for issue_comment events
+      if: github.event_name == 'issue_comment' && steps.pr-info.outputs.is_pr == 'true'
+      shell: bash
+      run: |
+        set -euo pipefail  # Exit on error, undefined vars, pipe failures
+
+        echo "Checking out PR #${{ steps.pr-info.outputs.pr_number }} at SHA ${{ steps.pr-info.outputs.pr_sha }}"
+
+        if ! git fetch origin pull/${{ steps.pr-info.outputs.pr_number }}/head:pr-${{ steps.pr-info.outputs.pr_number }}; then
+          echo "Error: Failed to fetch PR branch"
+          exit 1
+        fi
+
+        if ! git checkout pr-${{ steps.pr-info.outputs.pr_number }}; then
+          echo "Error: Failed to checkout PR branch"
+          exit 1
+        fi
+
     - name: Check ClaudeCode run history
       id: claudecode-history
-      if: github.event_name == 'pull_request'
+      if: github.event_name == 'pull_request' || (github.event_name == 'issue_comment' && steps.pr-info.outputs.is_pr == 'true')
       uses: actions/cache@v4
       with:
         path: .claudecode-marker
-        key: claudecode-${{ github.repository_id }}-pr-${{ github.event.pull_request.number }}-${{ github.sha }}
+        key: claudecode-${{ github.repository_id }}-pr-${{ github.event.pull_request.number || steps.pr-info.outputs.pr_number }}-${{ github.event.pull_request.head.sha || steps.pr-info.outputs.pr_sha }}
         restore-keys: |
-          claudecode-${{ github.repository_id }}-pr-${{ github.event.pull_request.number }}-
-    
+          claudecode-${{ github.repository_id }}-pr-${{ github.event.pull_request.number || steps.pr-info.outputs.pr_number }}-
+
+    - name: Detect bot identity
+      id: bot-identity
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ env.GITHUB_TOKEN || github.token }}
+      run: |
+        # Get authenticated user (the bot making API calls)
+        if ! BOT_LOGIN=$(gh api user --jq '.login' 2>/dev/null); then
+          echo "Warning: Failed to detect bot identity, using default"
+          BOT_LOGIN="github-actions"
+        fi
+        echo "bot_login=$BOT_LOGIN" >> $GITHUB_OUTPUT
+        echo "Detected bot identity: $BOT_LOGIN"
+
+    - name: Detect trigger type
+      id: trigger-detection
+      shell: bash
+      env:
+        EVENT_NAME: ${{ github.event_name }}
+        EVENT_ACTION: ${{ github.event.action }}
+        COMMENT_BODY: ${{ github.event.comment.body }}
+        BOT_LOGIN: ${{ steps.bot-identity.outputs.bot_login }}
+      run: |
+        TRIGGER_TYPE="unknown"
+
+        if [ "$EVENT_NAME" == "pull_request" ]; then
+          case "$EVENT_ACTION" in
+            opened|reopened)
+              TRIGGER_TYPE="open"
+              ;;
+            synchronize)
+              TRIGGER_TYPE="commit"
+              ;;
+            review_requested)
+              TRIGGER_TYPE="review_request"
+              ;;
+            labeled)
+              TRIGGER_TYPE="label"
+              ;;
+          esac
+        elif [ "$EVENT_NAME" == "pull_request_review" ]; then
+          if [ "$EVENT_ACTION" == "submitted" ]; then
+            TRIGGER_TYPE="review_request"
+          fi
+        elif [ "$EVENT_NAME" == "issue_comment" ]; then
+          # Check if comment mentions this specific bot
+          # Escape special regex characters in bot login to prevent regex injection
+          if [ -n "$BOT_LOGIN" ]; then
+            ESCAPED_BOT=$(printf '%s\n' "$BOT_LOGIN" | sed 's/[]\/$*.^[]/\\&/g')
+            if echo "$COMMENT_BODY" | grep -qE "@${ESCAPED_BOT}\\b"; then
+              TRIGGER_TYPE="mention"
+              echo "Detected mention of @$BOT_LOGIN in comment"
+            fi
+          fi
+        fi
+
+        echo "trigger_type=$TRIGGER_TYPE" >> $GITHUB_OUTPUT
+        echo "Detected trigger type: $TRIGGER_TYPE"
+
     - name: Determine ClaudeCode enablement
       id: claudecode-check
       shell: bash
       env:
-        PR_NUMBER: ${{ github.event.pull_request.number }}
+        GITHUB_EVENT_NAME: ${{ github.event_name }}
+        PR_NUMBER: ${{ github.event.pull_request.number || steps.pr-info.outputs.pr_number }}
+        GITHUB_SHA: ${{ github.event.pull_request.head.sha || steps.pr-info.outputs.pr_sha || github.sha }}
         RUN_EVERY_COMMIT: ${{ inputs.run-every-commit }}
+        TRIGGER_ON_OPEN: ${{ inputs.trigger-on-open }}
+        TRIGGER_ON_COMMIT: ${{ inputs.trigger-on-commit }}
+        TRIGGER_ON_REVIEW_REQUEST: ${{ inputs.trigger-on-review-request }}
+        TRIGGER_ON_MENTION: ${{ inputs.trigger-on-mention }}
         SKIP_DRAFT_PRS: ${{ inputs.skip-draft-prs }}
         IS_DRAFT: ${{ github.event.pull_request.draft }}
         REQUIRE_LABEL: ${{ inputs.require-label }}
         PR_LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+        TRIGGER_TYPE: ${{ steps.trigger-detection.outputs.trigger_type }}
+        IS_PR: ${{ steps.pr-info.outputs.is_pr }}
       run: |
-        # Check if ClaudeCode should be enabled
-        ENABLE_CLAUDECODE="true"
-        SILENCE_CLAUDECODE_COMMENTS="false"
-
-        # For PRs, check sampling and cache
-        if [ "${{ github.event_name }}" == "pull_request" ]; then
-          PR_NUMBER="$PR_NUMBER"
-          CACHE_HIT="${{ steps.claudecode-history.outputs.cache-hit }}"
-
-          # Check if required label is present
-          if [ -n "$REQUIRE_LABEL" ]; then
-            if echo "$PR_LABELS" | jq -e --arg label "$REQUIRE_LABEL" 'index($label) != null' > /dev/null 2>&1; then
-              echo "Required label '$REQUIRE_LABEL' found on PR #$PR_NUMBER"
-            else
-              echo "Skipping code review: required label '$REQUIRE_LABEL' not found on PR #$PR_NUMBER"
-              ENABLE_CLAUDECODE="false"
-            fi
-          fi
-
-          # Skip draft PRs if configured
-          if [ "$ENABLE_CLAUDECODE" == "true" ] && [ "$SKIP_DRAFT_PRS" == "true" ] && [ "$IS_DRAFT" == "true" ]; then
-            echo "Skipping code review for draft PR #$PR_NUMBER"
-            ENABLE_CLAUDECODE="false"
-          # Now check cache - if ClaudeCode has already run, disable unless run-every-commit is true
-          # Check if marker file exists (cache may have been restored from a different SHA)
-          elif [ "$ENABLE_CLAUDECODE" == "true" ] && [ "$RUN_EVERY_COMMIT" != "true" ] && [ -f ".claudecode-marker/marker.json" ]; then
-            echo "ClaudeCode has already run on PR #$PR_NUMBER (found marker file), forcing disable to avoid false positives"
-            ENABLE_CLAUDECODE="false"
-          elif [ "$ENABLE_CLAUDECODE" == "true" ] && [ "$RUN_EVERY_COMMIT" == "true" ] && [ -f ".claudecode-marker/marker.json" ]; then
-            echo "ClaudeCode has already run on PR #$PR_NUMBER but run-every-commit is enabled, running again"
-          elif [ "$ENABLE_CLAUDECODE" == "true" ]; then
-            echo "ClaudeCode will run for PR #$PR_NUMBER (first run)"
-          fi
-        fi
-        
-        echo "enable_claudecode=$ENABLE_CLAUDECODE" >> $GITHUB_OUTPUT
-        echo "silence_claudecode_comments=$SILENCE_CLAUDECODE_COMMENTS" >> $GITHUB_OUTPUT
-        
-        if [ "$ENABLE_CLAUDECODE" == "true" ]; then
-          echo "ClaudeCode is enabled for this run"
-        else
-          echo "ClaudeCode is disabled for this run"
-        fi
+        # Execute the enablement determination script
+        # This script encapsulates the complex logic for deciding when to run code reviews
+        # See scripts/determine-claudecode-enablement.sh for implementation details
+        "${{ github.action_path }}/scripts/determine-claudecode-enablement.sh"
     
     - name: Reserve ClaudeCode slot to prevent race conditions
-      if: steps.claudecode-check.outputs.enable_claudecode == 'true' && github.event_name == 'pull_request'
+      if: steps.claudecode-check.outputs.enable_claudecode == 'true'
       shell: bash
       env:
         REPOSITORY_ID: ${{ github.repository_id }}
         REPOSITORY: ${{ github.repository }}
-        PR_NUMBER: ${{ github.event.pull_request.number }}
-        SHA: ${{ github.sha }}
+        PR_NUMBER: ${{ github.event.pull_request.number || steps.pr-info.outputs.pr_number }}
+        SHA: ${{ github.event.pull_request.head.sha || steps.pr-info.outputs.pr_sha || github.sha }}
         RUN_ID: ${{ github.run_id }}
         RUN_NUMBER: ${{ github.run_number }}
+        TRIGGER_TYPE: ${{ steps.trigger-detection.outputs.trigger_type }}
+        EVENT_NAME: ${{ github.event_name }}
+        EVENT_ACTION: ${{ github.event.action }}
       run: |
+        set -euo pipefail  # Exit on error, undefined vars, pipe failures
+
         # Create a reservation marker immediately to prevent other concurrent runs
+        # Note: Using concurrency control (see README) prevents race conditions by ensuring
+        # only one workflow runs at a time per PR. Without it, simultaneous runs may both
+        # save to cache (last write wins), but SHA-based deduplication prevents duplicate reviews.
         mkdir -p .claudecode-marker
         cat > .claudecode-marker/marker.json << EOF
         {
@@ -185,17 +303,20 @@ runs:
           "sha": "$SHA",
           "status": "reserved",
           "run_id": "$RUN_ID",
-          "run_number": "$RUN_NUMBER"
+          "run_number": "$RUN_NUMBER",
+          "trigger_type": "$TRIGGER_TYPE",
+          "event_name": "$EVENT_NAME",
+          "event_action": "$EVENT_ACTION"
         }
         EOF
-        echo "Created ClaudeCode reservation marker for PR #$PR_NUMBER"
-    
+        echo "Created ClaudeCode reservation marker for PR #$PR_NUMBER (trigger: $TRIGGER_TYPE, SHA: $SHA)"
+
     - name: Save ClaudeCode reservation to cache
-      if: steps.claudecode-check.outputs.enable_claudecode == 'true' && github.event_name == 'pull_request'
+      if: steps.claudecode-check.outputs.enable_claudecode == 'true'
       uses: actions/cache/save@v4
       with:
         path: .claudecode-marker
-        key: claudecode-${{ github.repository_id }}-pr-${{ github.event.pull_request.number }}-${{ github.sha }}
+        key: claudecode-${{ github.repository_id }}-pr-${{ github.event.pull_request.number || steps.pr-info.outputs.pr_number }}-${{ github.event.pull_request.head.sha || steps.pr-info.outputs.pr_sha || github.sha }}
     
     - name: Set up Node.js
       if: steps.claudecode-check.outputs.enable_claudecode == 'true'
@@ -223,9 +344,10 @@ runs:
       env:
         GITHUB_TOKEN: ${{ env.GITHUB_TOKEN || github.token }}
         GITHUB_REPOSITORY: ${{ github.repository }}
-        PR_NUMBER: ${{ github.event.pull_request.number }}
+        PR_NUMBER: ${{ github.event.pull_request.number || steps.pr-info.outputs.pr_number }}
         ANTHROPIC_API_KEY: ${{ inputs.claude-api-key }}
-        ENABLE_CLAUDE_FILTERING: 'true' 
+        ENABLE_CLAUDE_FILTERING: ${{ inputs.enable-claude-filtering }}
+        ENABLE_HEURISTIC_FILTERING: ${{ inputs.enable-heuristic-filtering }}
         EXCLUDE_DIRECTORIES: ${{ inputs.exclude-directories }}
         FALSE_POSITIVE_FILTERING_INSTRUCTIONS: ${{ inputs.false-positive-filtering-instructions }}
         CUSTOM_REVIEW_INSTRUCTIONS: ${{ inputs.custom-review-instructions }}
@@ -237,14 +359,14 @@ runs:
       run: |
         echo "Running ClaudeCode AI code review analysis..."
         echo "----------------------------------------"
-        
+
         # Initialize outputs
         echo "findings_count=0" >> $GITHUB_OUTPUT
         echo "results_file=claudecode/claudecode-results.json" >> $GITHUB_OUTPUT
-        
-        # Skip ClaudeCode if not a PR
-        if [ "${{ github.event_name }}" != "pull_request" ]; then
-          echo "ClaudeCode only runs on pull requests, skipping"
+
+        # Skip ClaudeCode if not a PR or issue_comment event
+        if [ "${{ github.event_name }}" != "pull_request" ] && [ "${{ github.event_name }}" != "issue_comment" ]; then
+          echo "ClaudeCode only runs on pull requests and issue comments, skipping"
           exit 0
         fi
         
@@ -363,7 +485,7 @@ runs:
         if-no-files-found: ignore
     
     - name: Comment PR with findings
-      if: github.event_name == 'pull_request' && inputs.comment-pr == 'true' && steps.claudecode-check.outputs.enable_claudecode == 'true'
+      if: (github.event_name == 'pull_request' || github.event_name == 'issue_comment') && inputs.comment-pr == 'true' && steps.claudecode-check.outputs.enable_claudecode == 'true'
       shell: bash
       env:
         GITHUB_TOKEN: ${{ env.GITHUB_TOKEN || github.token }}

@@ -27,7 +27,9 @@ permissions:
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, labeled]
+    types: [opened, synchronize, reopened, labeled, review_requested]
+  issue_comment:
+    types: [created]
 
 jobs:
   review:
@@ -61,7 +63,13 @@ This action is not hardened against prompt injection attacks and should only be 
 | `exclude-directories` | Comma-separated list of directories to exclude from scanning | None | No |
 | `claude-model` | Claude [model name](https://docs.anthropic.com/en/docs/about-claude/models/overview#model-names) to use. Defaults to Opus 4.5. | `claude-opus-4-5-20251101` | No |
 | `claudecode-timeout` | Timeout for ClaudeCode analysis in minutes | `20` | No |
-| `run-every-commit` | Run ClaudeCode on every commit (skips cache check). Warning: May increase false positives on PRs with many commits. | `false` | No |
+| `run-every-commit` | Run ClaudeCode on every commit (skips cache check). Warning: May increase false positives on PRs with many commits. **Deprecated**: Use `trigger-on-commit` instead. | `false` | No |
+| `trigger-on-open` | Run review when PR is first opened | `true` | No |
+| `trigger-on-commit` | Run review on every new commit | `false` | No |
+| `trigger-on-review-request` | Run review when someone requests a review from the bot | `true` | No |
+| `trigger-on-mention` | Run review when bot is mentioned in a PR comment | `true` | No |
+| `enable-heuristic-filtering` | Use pattern-based heuristic rules to filter common false positives (e.g., stylistic issues, low-signal security warnings) | `true` | No |
+| `enable-claude-filtering` | Use Claude API to validate and filter findings. This reduces false positives but increases API costs by making additional validation calls to Claude. | `false` | No |
 | `false-positive-filtering-instructions` | Path to custom false positive filtering instructions text file | None | No |
 | `custom-review-instructions` | Path to custom code review instructions text file to append to the audit prompt | None | No |
 | `custom-security-scan-instructions` | Path to custom security scan instructions text file to append to the security section | None | No |
@@ -75,6 +83,123 @@ This action is not hardened against prompt injection attacks and should only be 
 |--------|-------------|
 | `findings-count` | Total number of code review findings |
 | `results-file` | Path to the results JSON file |
+
+### Re-Review Trigger Configuration
+
+The action supports multiple triggers for when reviews should be run, allowing fine-grained control over bot behavior:
+
+#### Default Behavior
+By default, the bot reviews PRs **once** when first opened, and will re-review when:
+- Someone explicitly requests a review from the bot
+- The bot is mentioned in a PR comment
+
+The bot will **not** automatically re-review on new commits unless configured to do so.
+
+#### Trigger Options
+
+| Trigger | Input | Default | Description |
+|---------|-------|---------|-------------|
+| **PR Open** | `trigger-on-open` | `true` | Run review when PR is first opened or reopened |
+| **New Commit** | `trigger-on-commit` | `false` | Run review automatically on every new commit to the PR |
+| **Review Request** | `trigger-on-review-request` | `true` | Run review when someone requests a review from the bot via GitHub's UI |
+| **Bot Mention** | `trigger-on-mention` | `true` | Run review when the bot is mentioned in a PR comment. The bot automatically detects its own identity (e.g., `@github-actions` for default token, or custom app name). |
+
+#### Usage Examples
+
+**Review only on explicit request (minimal usage):**
+```yaml
+- uses: PSPDFKit-labs/nutrient-code-review@main
+  with:
+    claude-api-key: ${{ secrets.CLAUDE_API_KEY }}
+    trigger-on-open: false
+    trigger-on-commit: false
+```
+
+**Review on every commit (maximum coverage, higher API costs):**
+```yaml
+- uses: PSPDFKit-labs/nutrient-code-review@main
+  with:
+    claude-api-key: ${{ secrets.CLAUDE_API_KEY }}
+    trigger-on-commit: true
+```
+
+**Disable bot mention trigger:**
+```yaml
+- uses: PSPDFKit-labs/nutrient-code-review@main
+  with:
+    claude-api-key: ${{ secrets.CLAUDE_API_KEY }}
+    trigger-on-mention: false
+```
+
+#### Appeal Workflow
+
+The bot supports a "review appeal" workflow where developers can request a re-review on the same commit:
+
+1. **Initial Review**: Bot reviews code at commit SHA X and finds issues
+2. **Developer Response**: Developer replies to review comments with context or explanations
+3. **Request Re-Review**: Developer uses GitHub's "Request review" feature (without pushing new code)
+4. **Bot Re-Reviews**: Bot runs again on the same SHA X and can provide updated feedback
+
+This allows developers to get a fresh review without needing to push a new commit.
+
+#### Workflow Configuration
+
+To enable all trigger types, your workflow file should include:
+
+```yaml
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, review_requested]
+  issue_comment:
+    types: [created]
+```
+
+**Note**: The `synchronize` type is included for commit-based triggers, but the bot will only run on new commits if `trigger-on-commit: true` is set.
+
+### Preventing Duplicate Reviews (Recommended)
+
+When multiple workflow triggers fire simultaneously (e.g., a new commit + a label addition), you may end up running duplicate reviews on the same code, wasting API costs. To prevent this, add a `concurrency` setting to your workflow file:
+
+```yaml
+name: Code Review
+
+concurrency:
+  group: code-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true  # Cancels older runs when new commits arrive
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, review_requested]
+  issue_comment:
+    types: [created]
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: PSPDFKit-labs/nutrient-code-review@main
+        with:
+          claude-api-key: ${{ secrets.CLAUDE_API_KEY }}
+```
+
+#### How Concurrency Control Works
+
+- **Prevents simultaneous runs**: Only one review runs at a time per PR
+- **Cancels older reviews**: When a new commit arrives, the previous review is cancelled
+- **Reduces costs**: Workflow cancellation stops execution before new API calls are made
+
+**Important**: While cancellation significantly reduces costs, API requests that are already in-flight to Anthropic will complete and be charged. This is a limitation of how API cancellation works—you cannot stop requests that have already been sent.
+
+#### Alternative: Queue Instead of Cancel
+
+If you prefer to keep the older run and cancel newer ones (queue behavior):
+
+```yaml
+concurrency:
+  group: code-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: false  # Queues new runs instead
+```
 
 ## How It Works
 
@@ -113,13 +238,67 @@ claudecode/
 
 ### False Positive Filtering
 
-The tool automatically excludes a variety of low-signal findings to focus on high-impact issues:
+The tool uses a two-tier filtering approach to focus on high-impact issues:
+
+**1. Pattern-Based Heuristic Filtering (Enabled by Default)**
+
+Uses regex patterns to automatically filter out common false positives:
 - Purely stylistic or formatting concerns
 - Documentation-only changes without behavioral impact
 - Hypothetical issues without a clear failure mode
 - Security-only exclusions for low-signal categories (e.g., generic DOS/rate limit comments)
 
-The false positive filtering can also be tuned as needed for a given project's goals.
+This filtering is fast and free (no additional API costs). You can disable it if you want to see all raw findings:
+
+```yaml
+- uses: PSPDFKit-labs/nutrient-code-review@main
+  with:
+    claude-api-key: ${{ secrets.CLAUDE_API_KEY }}
+    enable-heuristic-filtering: false  # See all findings without pattern filtering
+```
+
+**2. Claude API Filtering (Optional)**
+
+For even more precise filtering, you can enable `enable-claude-filtering: true` to use Claude API to validate each finding. This provides:
+- More intelligent context-aware filtering
+- Better understanding of project-specific patterns
+- Reduced false positives
+
+**Note**: This option increases API costs as it makes additional validation calls to Claude for each finding. It's disabled by default.
+
+```yaml
+- uses: PSPDFKit-labs/nutrient-code-review@main
+  with:
+    claude-api-key: ${{ secrets.CLAUDE_API_KEY }}
+    enable-claude-filtering: true  # Optional: More precise filtering at higher cost
+```
+
+**Filtering Configuration Examples:**
+
+```yaml
+# Maximum filtering (recommended for most projects)
+- uses: PSPDFKit-labs/nutrient-code-review@main
+  with:
+    claude-api-key: ${{ secrets.CLAUDE_API_KEY }}
+    enable-heuristic-filtering: true   # Pattern-based filtering (default)
+    enable-claude-filtering: true      # AI-powered validation (costs more)
+
+# Minimal filtering (see all findings)
+- uses: PSPDFKit-labs/nutrient-code-review@main
+  with:
+    claude-api-key: ${{ secrets.CLAUDE_API_KEY }}
+    enable-heuristic-filtering: false  # No pattern filtering
+    enable-claude-filtering: false     # No AI validation (default)
+
+# Default configuration (balanced)
+- uses: PSPDFKit-labs/nutrient-code-review@main
+  with:
+    claude-api-key: ${{ secrets.CLAUDE_API_KEY }}
+    # enable-heuristic-filtering: true (default)
+    # enable-claude-filtering: false (default)
+```
+
+The false positive filtering can also be tuned with custom instructions - see the [`docs/`](docs/) folder for more details.
 
 ### Benefits Over Traditional SAST
 
@@ -186,14 +365,21 @@ By default, reviews are posted as "github-actions[bot]". To use a custom name an
 
 Review dismissal works automatically with custom apps since reviews are identified by content, not bot username.
 
+**Note**: When using a custom app, the bot mention trigger will automatically detect and respond to mentions of your custom app's name (e.g., `@MyCodeReviewer`), not `@github-actions`.
+
 ## Testing
 
 Run the test suite to validate functionality:
 
 ```bash
-cd nutrient-code-review
-# Run all tests
+# Python tests
 pytest claudecode -v
+
+# JavaScript tests
+cd scripts && npm test
+
+# Bash script tests
+./scripts/test-determine-claudecode-enablement.sh
 ```
 
 ## Support

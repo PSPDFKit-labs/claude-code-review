@@ -193,6 +193,7 @@ index 8901234..5678901 100644
                 'PR_NUMBER': '456',
                 'GITHUB_TOKEN': 'test-token',
                 'ANTHROPIC_API_KEY': 'test-api-key',
+                'ENABLE_HEURISTIC_FILTERING': 'true',
                 'ENABLE_CLAUDE_FILTERING': 'false'  # Use simple filter
             }):
                 with pytest.raises(SystemExit) as exc_info:
@@ -273,6 +274,7 @@ index 8901234..5678901 100644
                 'PR_NUMBER': '789',
                 'GITHUB_TOKEN': 'test-token',
                 'ANTHROPIC_API_KEY': 'test-api-key',
+                'ENABLE_HEURISTIC_FILTERING': 'true',
                 'ENABLE_CLAUDE_FILTERING': 'false'  # Use simple filter to avoid isinstance issues
             }):
                 with pytest.raises(SystemExit) as exc_info:
