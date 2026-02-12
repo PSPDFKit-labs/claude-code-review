@@ -210,7 +210,7 @@ runs:
       id: bot-identity
       shell: bash
       env:
-        GITHUB_TOKEN: ${{ env.GITHUB_TOKEN || github.token }}
+        GH_TOKEN: ${{ env.GITHUB_TOKEN || github.token }}
       run: |
         # Get authenticated user (the bot making API calls)
         if ! BOT_LOGIN=$(gh api user --jq '.login' 2>/dev/null); then
