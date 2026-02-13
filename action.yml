@@ -230,11 +230,11 @@ runs:
         elif [ "$EVENT_NAME" == "issue_comment" ]; then
           # Check if comment mentions this specific bot
           # Escape special regex characters in bot login to prevent regex injection
-          if [ -n "APP_SLUG" ]; then
-            ESCAPED_BOT=$(printf '%s\n' "APP_SLUG" | sed 's/[]\/$*.^[]/\\&/g')
+          if [ -n "$APP_SLUG" ]; then
+            ESCAPED_BOT=$(printf '%s\n' "$APP_SLUG" | sed 's/[]\/$*.^[]/\\&/g')
             if echo "$COMMENT_BODY" | grep -qE "@${ESCAPED_BOT}\\b"; then
               TRIGGER_TYPE="mention"
-              echo "Detected mention of @APP_SLUG in comment"
+              echo "Detected mention of @$APP_SLUG in comment"
             fi
           fi
         fi
