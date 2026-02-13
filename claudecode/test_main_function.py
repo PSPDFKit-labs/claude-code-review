@@ -40,7 +40,8 @@ def make_pr_data(pr_diff='diff', is_truncated=False, files_included=1, total_fil
         'is_truncated': is_truncated,
         'diff_stats': {
             'files_included': files_included,
-            'total_files': total_files
+            'total_files': total_files,
+            'included_file_list': [f['filename'] for f in (files or [])] if files else []
         }
     }
     base_data.update(kwargs)
