@@ -234,6 +234,10 @@ class GitHubActionClient:
                 return True
 
         return False
+
+    def is_excluded(self, filepath: str) -> bool:
+        """Public wrapper for exclusion checks."""
+        return self._is_excluded(filepath)
     
     def _filter_generated_files(self, diff_text: str) -> str:
         """Filter out generated files and excluded directories from diff content."""
@@ -329,7 +333,7 @@ class SimpleClaudeRunner:
                     if (isinstance(parsed_result, dict) and 
                         parsed_result.get('type') == 'result' and 
                         parsed_result.get('subtype') == 'error_during_execution' and
-                        attempt == 0):
+                        attempt < NUM_RETRIES - 1):
                         continue
 
                     if isinstance(parsed_result, dict) and 'result' in parsed_result and isinstance(parsed_result['result'], str):

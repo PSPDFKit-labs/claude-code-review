@@ -64,9 +64,10 @@ class ReviewOrchestrator:
 
     def _run_phase(self, repo_dir: Path, prompt: str, model: str, phase_name: str) -> Tuple[bool, Dict[str, Any], str]:
         raw_result = None
-        if hasattr(self.claude_runner, "run_prompt"):
+        supports_run_prompt = callable(getattr(type(self.claude_runner), "run_prompt", None))
+        if supports_run_prompt:
             raw_result = self.claude_runner.run_prompt(repo_dir, prompt, model=model)
-        if not (isinstance(raw_result, tuple) and len(raw_result) == 3) and hasattr(self.claude_runner, "run_code_review"):
+        elif hasattr(self.claude_runner, "run_code_review"):
             try:
                 raw_result = self.claude_runner.run_code_review(repo_dir, prompt, model=model)
             except TypeError:
@@ -86,6 +87,13 @@ class ReviewOrchestrator:
         if not parsed_ok:
             return False, {}, f"Failed to parse {phase_name} output"
         return True, parsed, ""
+
+    def _is_excluded(self, filepath: str) -> bool:
+        checker = getattr(self.github_client, "is_excluded", None)
+        if callable(checker):
+            return bool(checker(filepath))
+        # Fallback for current client/tests that still expose private method.
+        return bool(self.github_client._is_excluded(filepath))
 
     def _collect_phase_findings(self, phase_result: Dict[str, Any], source_agent: str) -> List[Dict[str, Any]]:
         findings: List[Dict[str, Any]] = []
@@ -125,7 +133,7 @@ class ReviewOrchestrator:
             original_count = len([f for f in triage_result.get("findings", []) if isinstance(f, dict)])
             legacy_findings = []
             for finding in triage_result.get("findings", []):
-                if isinstance(finding, dict) and not self.github_client._is_excluded(finding.get("file", "")):
+                if isinstance(finding, dict) and not self._is_excluded(finding.get("file", "")):
                     legacy_findings.append(self._ensure_review_type(finding))
             pr_context = {
                 "repo_name": pr_data.get("head", {}).get("repo", {}).get("full_name", "unknown"),
@@ -255,7 +263,7 @@ class ReviewOrchestrator:
             "description": pr_data.get("body", ""),
         }
         kept_findings = validated
-        original_count = len(validated)
+        original_count = len(all_candidates)
         filter_response = self.findings_filter.filter_findings(validated, pr_context)
         if isinstance(filter_response, tuple) and len(filter_response) == 3:
             filter_success, filter_results, _ = filter_response
@@ -266,7 +274,7 @@ class ReviewOrchestrator:
         for finding in kept_findings:
             if not isinstance(finding, dict):
                 continue
-            if self.github_client._is_excluded(finding.get("file", "")):
+            if self._is_excluded(finding.get("file", "")):
                 continue
             final_findings.append(self._ensure_review_type(finding))
 

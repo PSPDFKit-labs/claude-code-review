@@ -19,6 +19,11 @@ def _build_hybrid_diff_section(pr_diff: str, max_lines: int) -> str:
     """Build a bounded inline diff section while requiring tool-based context reads."""
     if not pr_diff:
         return "\nNo inline diff available. Use repository tools to inspect changed files.\n"
+    if max_lines == 0:
+        return (
+            "\nInline diff intentionally omitted (max-diff-lines=0). "
+            "Use repository tools to inspect changed files and context.\n"
+        )
 
     lines = pr_diff.splitlines()
     if max_lines > 0 and len(lines) > max_lines:
