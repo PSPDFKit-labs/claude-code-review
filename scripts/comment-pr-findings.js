@@ -11,16 +11,24 @@ const { spawnSync } = require('child_process');
 const PR_SUMMARY_MARKER = '📋 **PR Summary:**';
 
 // Parse GitHub context from environment
+const eventData = process.env.GITHUB_EVENT_PATH ? JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8')) : {};
 const context = {
   repo: {
     owner: process.env.GITHUB_REPOSITORY?.split('/')[0] || '',
     repo: process.env.GITHUB_REPOSITORY?.split('/')[1] || ''
   },
   issue: {
-    number: parseInt(process.env.GITHUB_EVENT_PATH ? JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8')).pull_request?.number : '') || 0
+    number: parseInt(eventData.pull_request?.number || eventData.issue?.number || 0)
   },
   payload: {
-    pull_request: process.env.GITHUB_EVENT_PATH ? JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8')).pull_request : {}
+    pull_request: {
+      ...eventData.pull_request,
+      head: {
+        ...(eventData.pull_request?.head || {}),
+        // Use PR_HEAD_SHA from environment if available (more reliable than event payload)
+        sha: process.env.PR_HEAD_SHA || eventData.pull_request?.head?.sha || ''
+      }
+    }
   }
 };
 

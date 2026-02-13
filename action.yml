@@ -532,6 +532,7 @@ runs:
         CLAUDECODE_FINDINGS: ${{ steps.claudecode-scan.outputs.findings_count }}
         SILENCE_CLAUDECODE_COMMENTS: ${{ steps.claudecode-check.outputs.silence_claudecode_comments }}
         ACTION_PATH: ${{ github.action_path }}
+        PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || steps.pr-info.outputs.pr_sha }}
       run: |
         node "$ACTION_PATH/scripts/comment-pr-findings.js"
 
