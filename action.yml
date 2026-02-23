@@ -7,12 +7,12 @@ inputs:
     description: 'Whether to comment on PRs with findings'
     required: false
     default: 'true'
-  
+
   upload-results:
     description: 'Whether to upload results as artifacts'
     required: false
     default: 'true'
-  
+
   exclude-directories:
     description: 'Comma-separated list of directories to exclude from scanning'
     required: false
@@ -22,7 +22,7 @@ inputs:
     description: 'Timeout for ClaudeCode analysis in minutes'
     required: false
     default: '20'
-  
+
   claude-api-key:
     description: 'Anthropic Claude API key for code review analysis'
     required: true
@@ -123,7 +123,7 @@ outputs:
   findings-count:
     description: 'Number of code review findings'
     value: ${{ steps.claudecode-scan.outputs.findings_count }}
-  
+
   results-file:
     description: 'Path to the results JSON file'
     value: ${{ steps.claudecode-scan.outputs.results_file }}
@@ -287,7 +287,7 @@ runs:
         # This script encapsulates the complex logic for deciding when to run code reviews
         # See scripts/determine-claudecode-enablement.sh for implementation details
         "${{ github.action_path }}/scripts/determine-claudecode-enablement.sh"
-    
+
     - name: Reserve ClaudeCode slot to prevent race conditions
       if: steps.claudecode-check.outputs.enable_claudecode == 'true'
       shell: bash
@@ -344,7 +344,7 @@ runs:
       uses: actions/setup-node@v4
       with:
         node-version: '18'
-    
+
     - name: Setup git for diffing
       if: steps.claudecode-check.outputs.enable_claudecode == 'true'
       shell: bash
@@ -386,7 +386,7 @@ runs:
         npm install -g @anthropic-ai/claude-code
         sudo apt-get update && sudo apt-get install -y jq
         echo "::endgroup::"
-    
+
     - name: Run ClaudeCode scan
       id: claudecode-scan
       if: steps.claudecode-check.outputs.enable_claudecode == 'true'
@@ -530,7 +530,7 @@ runs:
         
         echo "::endgroup::"
     
-    
+
     - name: Upload scan results
       if: always() && inputs.upload-results == 'true'
       uses: actions/upload-artifact@v4
@@ -542,7 +542,7 @@ runs:
           claudecode-error.log
         retention-days: 7
         if-no-files-found: ignore
-    
+
     - name: Comment PR with findings
       if: (github.event_name == 'pull_request' || github.event_name == 'issue_comment') && inputs.comment-pr == 'true' && steps.claudecode-check.outputs.enable_claudecode == 'true'
       shell: bash
@@ -554,27 +554,6 @@ runs:
         PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || steps.pr-info.outputs.pr_sha }}
       run: |
         node "$ACTION_PATH/scripts/comment-pr-findings.js"
-
-    - name: Request bot as reviewer
-      if: steps.claudecode-check.outputs.enable_claudecode == 'true'
-      shell: bash
-      env:
-        GH_TOKEN: ${{ env.GITHUB_TOKEN || github.token }}
-        GITHUB_REPOSITORY: ${{ github.repository }}
-        PR_NUMBER: ${{ github.event.pull_request.number || steps.pr-info.outputs.pr_number }}
-        BOT_LOGIN: ${{ inputs.app-slug }}[bot]
-      run: |
-        # Request the bot as a reviewer to make it appear in the PR's reviewer list
-        # This is optional and will fail silently if the bot is already a reviewer or doesn't have permissions
-        echo "Requesting $BOT_LOGIN as reviewer for PR #$PR_NUMBER..."
-
-        if gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/requested_reviewers" \
-          -X POST \
-          -f "reviewers[]=$BOT_LOGIN" 2>/dev/null; then
-          echo "Successfully requested $BOT_LOGIN as reviewer"
-        else
-          echo "Note: Could not request bot as reviewer (this is normal if bot is already a reviewer or is the PR author)"
-        fi
 
 branding:
   icon: 'shield'

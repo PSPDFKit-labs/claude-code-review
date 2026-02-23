@@ -386,7 +386,13 @@ async function run() {
       const existingState = existingReview.state;
 
       if (existingState === newState && reviewComments.length === 0) {
-        // Same state and no new inline comments - update body in place
+        // Same state and no new inline comments - check if update would be a downgrade
+        const existingHasSummary = existingReview.body && existingReview.body.includes(PR_SUMMARY_MARKER);
+        const newHasSummary = reviewBody.includes(PR_SUMMARY_MARKER);
+        if (existingHasSummary && !newHasSummary) {
+          console.log(`Skipping update: existing review already has PR summary, new body does not`);
+          return;
+        }
         const updated = updateReviewBody(existingReview.id, reviewBody);
         if (updated) {
           console.log(`Updated existing review in place (state: ${newState})`);
