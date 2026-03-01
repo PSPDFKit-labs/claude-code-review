@@ -6,7 +6,7 @@ concurrency:
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, labeled, review_requested]
+    types: [opened, synchronize, reopened, labeled, review_requested, ready_for_review]
   issue_comment:
     types: [created]
   workflow_dispatch:
@@ -24,8 +24,18 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 2
 
+      - name: Generate App Token
+        id: app-token
+        uses: actions/create-github-app-token@v1.9.0
+        with:
+          app-id: ${{ secrets.CODE_REVIEW_APP_ID }}
+          private-key: ${{ secrets.CODE_REVIEW_APP_PRIVATE_KEY }}
+
       - uses: ./
         with:
           comment-pr: true
           upload-results: true
           claude-api-key: ${{ secrets.CLAUDE_API_KEY }}
+          app-slug: ${{ steps.app-token.outputs.app-slug }}
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
