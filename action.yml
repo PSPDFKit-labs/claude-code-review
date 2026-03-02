@@ -236,7 +236,7 @@ runs:
 
         if [ "$EVENT_NAME" == "pull_request" ]; then
           case "$EVENT_ACTION" in
-            opened|reopened)
+            opened|reopened|ready_for_review)
               TRIGGER_TYPE="open"
               ;;
             synchronize)
