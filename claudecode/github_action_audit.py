@@ -128,7 +128,7 @@ class GitHubActionClient:
             print(f"[Debug] User excluded directories: {user_excluded_dirs}", file=sys.stderr)
         print(f"[Debug] Total excluded directories: {self.excluded_dirs}", file=sys.stderr)
     
-    def get_pr_data(self, repo_name: str, pr_number: int, max_diff_chars: int = 400000) -> Dict[str, Any]:
+    def get_pr_data(self, repo_name: str, pr_number: int, max_diff_chars: int = DEFAULT_MAX_DIFF_CHARS) -> Dict[str, Any]:
         """Get PR metadata and construct diff in one pass with early termination.
 
         Fetches files page-by-page while building the diff. Stops fetching when
