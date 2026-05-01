@@ -5,16 +5,16 @@ Constants and configuration values for ClaudeCode.
 import os
 
 # API Configuration
-DEFAULT_CLAUDE_MODEL = os.environ.get('CLAUDE_MODEL') or 'claude-opus-4-5-20251101'
+DEFAULT_CLAUDE_MODEL = os.environ.get('CLAUDE_MODEL') or 'claude-opus-4-7'
 DEFAULT_TIMEOUT_SECONDS = 180  # 3 minutes
 DEFAULT_MAX_RETRIES = 3
 RATE_LIMIT_BACKOFF_MAX = 30  # Maximum backoff time for rate limits
 
 # Token Limits
-PROMPT_TOKEN_LIMIT = 16384  # 16k tokens max for claude-opus-4
+PROMPT_TOKEN_LIMIT = 16384  # Output cap for filter/validator API calls
 
 # Diff Construction Limits
-DEFAULT_MAX_DIFF_CHARS = 400000  # 400k characters (suitable for 200k token models)
+DEFAULT_MAX_DIFF_CHARS = 800000  # 800k characters (~200k tokens; fits comfortably in 1M context models)
 # Conversion factor for deprecated MAX_DIFF_LINES -> MAX_DIFF_CHARS
 CHARS_PER_LINE_ESTIMATE = 80  # Average characters per line for conversion
 
