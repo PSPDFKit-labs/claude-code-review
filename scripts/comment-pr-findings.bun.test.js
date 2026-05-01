@@ -1233,4 +1233,214 @@ describe('comment-pr-findings.js', () => {
       expect(reviewCreated).toBe(true);
     });
   });
+
+  describe('Comment-Only Mode', () => {
+    test('should post COMMENT review (not REQUEST_CHANGES) when high-severity findings exist', async () => {
+      process.env.REVIEW_MODE = 'comment-only';
+
+      const mockFindings = [{
+        file: 'test.py',
+        line: 10,
+        title: 'Critical issue',
+        description: 'Detected critical issue',
+        severity: 'HIGH',
+        category: 'security'
+      }];
+
+      const mockPrFiles = [{ filename: 'test.py', patch: '@@ -10,1 +10,1 @@' }];
+
+      readFileSyncSpy.mockImplementation((path) => {
+        if (path.includes('github-event.json')) {
+          return JSON.stringify({ pull_request: { number: 123, head: { sha: 'abc123' } } });
+        }
+        if (path === 'findings.json') {
+          return JSON.stringify(mockFindings);
+        }
+        if (path === 'analysis-summary.json') {
+          return JSON.stringify({ files_reviewed: 1, high_severity: 1, medium_severity: 0, low_severity: 0 });
+        }
+      });
+
+      let reviewDataCaptured = null;
+      spawnSyncSpy.mockImplementation((cmd, args, options) => {
+        if (cmd === 'gh' && args.includes('api')) {
+          const endpoint = args[1];
+          const method = args[args.indexOf('--method') + 1] || 'GET';
+
+          if (endpoint.includes('/pulls/123/files')) {
+            return { status: 0, stdout: JSON.stringify(mockPrFiles), stderr: '' };
+          }
+          if (endpoint.includes('/pulls/123/reviews') && method === 'GET') {
+            return { status: 0, stdout: '[]', stderr: '' };
+          }
+          if (endpoint.includes('/pulls/123/reviews') && method === 'POST') {
+            if (options && options.input) {
+              reviewDataCaptured = JSON.parse(options.input);
+            }
+            return { status: 0, stdout: '{}', stderr: '' };
+          }
+          return { status: 0, stdout: '{}', stderr: '' };
+        }
+        return { status: 0, stdout: '{}', stderr: '' };
+      });
+
+      await import('./comment-pr-findings.js');
+
+      expect(reviewDataCaptured).toBeTruthy();
+      expect(reviewDataCaptured.event).toBe('COMMENT');
+      expect(reviewDataCaptured.comments).toHaveLength(1);
+    });
+
+    test('should post COMMENT review (not APPROVE) when no findings exist', async () => {
+      process.env.REVIEW_MODE = 'comment-only';
+
+      readFileSyncSpy.mockImplementation((path) => {
+        if (path.includes('github-event.json')) {
+          return JSON.stringify({ pull_request: { number: 123, head: { sha: 'abc123' } } });
+        }
+        if (path === 'findings.json') {
+          return '[]';
+        }
+        if (path === 'analysis-summary.json') {
+          return JSON.stringify({ files_reviewed: 1, high_severity: 0, medium_severity: 0, low_severity: 0 });
+        }
+      });
+
+      let reviewDataCaptured = null;
+      spawnSyncSpy.mockImplementation((cmd, args, options) => {
+        if (cmd === 'gh' && args.includes('api')) {
+          const endpoint = args[1];
+          const method = args[args.indexOf('--method') + 1] || 'GET';
+
+          if (endpoint.includes('/pulls/123/reviews') && method === 'POST') {
+            if (options && options.input) {
+              reviewDataCaptured = JSON.parse(options.input);
+            }
+            return { status: 0, stdout: '{}', stderr: '' };
+          }
+          return { status: 0, stdout: '{}', stderr: '' };
+        }
+        return { status: 0, stdout: '{}', stderr: '' };
+      });
+
+      await import('./comment-pr-findings.js');
+
+      expect(reviewDataCaptured).toBeTruthy();
+      expect(reviewDataCaptured.event).toBe('COMMENT');
+      expect(reviewDataCaptured.body).toContain('No issues found');
+    });
+
+    test('should update existing COMMENTED review in place when no inline comments', async () => {
+      process.env.REVIEW_MODE = 'comment-only';
+
+      const mockReviews = [
+        { id: 101, state: 'COMMENTED', user: { type: 'Bot' }, body: 'No issues found. Changes look good.' }
+      ];
+
+      readFileSyncSpy.mockImplementation((path) => {
+        if (path.includes('github-event.json')) {
+          return JSON.stringify({ pull_request: { number: 123, head: { sha: 'abc123' } } });
+        }
+        if (path === 'findings.json') {
+          return '[]';
+        }
+        if (path === 'analysis-summary.json') {
+          return JSON.stringify({ files_reviewed: 1, high_severity: 0, medium_severity: 0, low_severity: 0 });
+        }
+      });
+
+      let reviewUpdated = false;
+      let reviewCreated = false;
+      spawnSyncSpy.mockImplementation((cmd, args, options) => {
+        if (cmd === 'gh' && args.includes('api')) {
+          const endpoint = args[1];
+          const method = args[args.indexOf('--method') + 1] || 'GET';
+
+          if (endpoint.includes('/pulls/123/reviews') && method === 'GET') {
+            return { status: 0, stdout: JSON.stringify(mockReviews), stderr: '' };
+          }
+          if (endpoint.match(/\/pulls\/123\/reviews\/\d+$/) && method === 'PUT') {
+            reviewUpdated = true;
+            return { status: 0, stdout: '{}', stderr: '' };
+          }
+          if (endpoint.includes('/pulls/123/reviews') && method === 'POST') {
+            reviewCreated = true;
+            return { status: 0, stdout: '{}', stderr: '' };
+          }
+          return { status: 0, stdout: '{}', stderr: '' };
+        }
+        return { status: 0, stdout: '{}', stderr: '' };
+      });
+
+      await import('./comment-pr-findings.js');
+
+      expect(reviewUpdated).toBe(true);
+      expect(reviewCreated).toBe(false);
+      expect(consoleLogSpy).toHaveBeenCalledWith('Updated existing review in place (state: COMMENTED)');
+    });
+
+    test('should dismiss legacy APPROVED review when migrating from approve-reject mode', async () => {
+      process.env.REVIEW_MODE = 'comment-only';
+
+      const mockReviews = [
+        { id: 101, state: 'APPROVED', user: { type: 'Bot' }, body: 'No issues found. Changes look good.' }
+      ];
+
+      const mockFindings = [{
+        file: 'test.py',
+        line: 10,
+        description: 'New issue',
+        severity: 'HIGH',
+        category: 'security'
+      }];
+
+      const mockPrFiles = [{ filename: 'test.py', patch: '@@ -10,1 +10,1 @@' }];
+
+      readFileSyncSpy.mockImplementation((path) => {
+        if (path.includes('github-event.json')) {
+          return JSON.stringify({ pull_request: { number: 123, head: { sha: 'abc123' } } });
+        }
+        if (path === 'findings.json') {
+          return JSON.stringify(mockFindings);
+        }
+        if (path === 'analysis-summary.json') {
+          return JSON.stringify({ files_reviewed: 1, high_severity: 1, medium_severity: 0, low_severity: 0 });
+        }
+      });
+
+      let reviewDismissed = false;
+      let reviewDataCaptured = null;
+      spawnSyncSpy.mockImplementation((cmd, args, options) => {
+        if (cmd === 'gh' && args.includes('api')) {
+          const endpoint = args[1];
+          const method = args[args.indexOf('--method') + 1] || 'GET';
+
+          if (endpoint.includes('/pulls/123/reviews') && method === 'GET') {
+            return { status: 0, stdout: JSON.stringify(mockReviews), stderr: '' };
+          }
+          if (endpoint.includes('/dismissals') && method === 'PUT') {
+            reviewDismissed = true;
+            return { status: 0, stdout: '{}', stderr: '' };
+          }
+          if (endpoint.includes('/pulls/123/files')) {
+            return { status: 0, stdout: JSON.stringify(mockPrFiles), stderr: '' };
+          }
+          if (endpoint.includes('/pulls/123/reviews') && method === 'POST') {
+            if (options && options.input) {
+              reviewDataCaptured = JSON.parse(options.input);
+            }
+            return { status: 0, stdout: '{}', stderr: '' };
+          }
+          return { status: 0, stdout: '{}', stderr: '' };
+        }
+        return { status: 0, stdout: '{}', stderr: '' };
+      });
+
+      await import('./comment-pr-findings.js');
+
+      expect(reviewDismissed).toBe(true);
+      expect(reviewDataCaptured).toBeTruthy();
+      expect(reviewDataCaptured.event).toBe('COMMENT');
+    });
+  });
 });

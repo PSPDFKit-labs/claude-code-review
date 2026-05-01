@@ -10,6 +10,10 @@ const { spawnSync } = require('child_process');
 // PR Summary marker for identifying our summary sections
 const PR_SUMMARY_MARKER = '📋 **PR Summary:**';
 
+// Review mode: 'approve-reject' (APPROVE / REQUEST_CHANGES verdict) or 'comment-only' (COMMENT, no verdict)
+const REVIEW_MODE = (process.env.REVIEW_MODE || 'approve-reject').toLowerCase();
+const COMMENT_ONLY_MODE = REVIEW_MODE === 'comment-only';
+
 // Parse GitHub context from environment
 const eventData = process.env.GITHUB_EVENT_PATH ? JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8')) : {};
 const context = {
@@ -134,11 +138,16 @@ function findExistingReview() {
     }
 
     for (const review of reviews) {
-      const isDismissible = review.state === 'APPROVED' || review.state === 'CHANGES_REQUESTED';
+      // In approve-reject mode, only APPROVED/CHANGES_REQUESTED reviews are ours to manage.
+      // In comment-only mode, also include COMMENTED reviews (the new state) plus the legacy
+      // verdict states so we can dismiss leftover reviews from a previous approve-reject run.
+      const matchesMode = COMMENT_ONLY_MODE
+        ? (review.state === 'APPROVED' || review.state === 'CHANGES_REQUESTED' || review.state === 'COMMENTED')
+        : (review.state === 'APPROVED' || review.state === 'CHANGES_REQUESTED');
       const isBot = review.user && review.user.type === 'Bot';
       const isOwn = isOwnReview(review);
 
-      if (isBot && isDismissible && isOwn) {
+      if (isBot && matchesMode && isOwn) {
         return review;
       }
     }
@@ -292,7 +301,9 @@ async function run() {
     }
 
     const highSeverityCount = analysisSummary.high_severity || 0;
-    const reviewEvent = highSeverityCount > 0 ? 'REQUEST_CHANGES' : 'APPROVE';
+    const reviewEvent = COMMENT_ONLY_MODE
+      ? 'COMMENT'
+      : (highSeverityCount > 0 ? 'REQUEST_CHANGES' : 'APPROVE');
     const reviewBody = buildReviewSummary(newFindings, prSummary, analysisSummary);
 
     // Prepare review comments
@@ -380,7 +391,9 @@ async function run() {
 
     // Handle existing reviews - update in place if state unchanged, otherwise dismiss and recreate
     const existingReview = findExistingReview();
-    const newState = highSeverityCount > 0 ? 'CHANGES_REQUESTED' : 'APPROVED';
+    const newState = COMMENT_ONLY_MODE
+      ? 'COMMENTED'
+      : (highSeverityCount > 0 ? 'CHANGES_REQUESTED' : 'APPROVED');
 
     if (existingReview) {
       const existingState = existingReview.state;

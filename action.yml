@@ -118,6 +118,14 @@ inputs:
     required: false
     default: 'true'
 
+  review-mode:
+    description: |
+      How to post the review on the PR:
+      - 'approve-reject' (default): submit APPROVE when no high-severity findings, REQUEST_CHANGES otherwise.
+      - 'comment-only': submit a non-blocking COMMENT review with the same inline comments and summary, but no approval/rejection verdict.
+    required: false
+    default: 'approve-reject'
+
 outputs:
   findings-count:
     description: 'Number of code review findings'
@@ -551,6 +559,7 @@ runs:
         SILENCE_CLAUDECODE_COMMENTS: ${{ steps.claudecode-check.outputs.silence_claudecode_comments }}
         ACTION_PATH: ${{ github.action_path }}
         PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || steps.pr-info.outputs.pr_sha }}
+        REVIEW_MODE: ${{ inputs.review-mode }}
       run: |
         node "$ACTION_PATH/scripts/comment-pr-findings.js"
 

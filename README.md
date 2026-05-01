@@ -109,6 +109,7 @@ This action is not hardened against prompt injection attacks and should only be 
 |-------|-------------|---------|----------|
 | `claude-api-key` | Anthropic Claude API key for code review analysis. <br>*Note*: This API key needs to be enabled for both the Claude API and Claude Code usage. | None | Yes |
 | `comment-pr` | Whether to comment on PRs with findings | `true` | No |
+| `review-mode` | How to post the review on the PR. `approve-reject` submits an `APPROVE` or `REQUEST_CHANGES` verdict based on findings; `comment-only` posts the same inline comments and summary as a non-blocking `COMMENT` review with no verdict. | `approve-reject` | No |
 | `upload-results` | Whether to upload results as artifacts | `true` | No |
 | `exclude-directories` | Comma-separated list of directories to exclude from scanning | None | No |
 | `claude-model` | Claude [model name](https://docs.anthropic.com/en/docs/about-claude/models/overview#model-names) to use. Defaults to Opus 4.7 (1M context). For very large PRs or to reduce cost, consider `claude-sonnet-4-6` (also 1M context, faster and cheaper). | `claude-opus-4-7` | No |
