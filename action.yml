@@ -29,7 +29,7 @@ inputs:
     default: ''
 
   claude-model:
-    description: 'Claude model to use for code review analysis (e.g., claude-sonnet-4-20250514)'
+    description: 'Claude model to use for code review analysis (e.g., claude-sonnet-4-6)'
     required: false
     default: ''
 
@@ -75,10 +75,10 @@ inputs:
       Larger diffs use agentic file reading instead. Set to 0 to always use agentic mode.
 
       IMPORTANT: For large limits (>400k), use a model with larger context like:
-      - claude-sonnet-4-5-20250929 (1M context) for diffs up to 800k chars
+      - claude-sonnet-4-6 (1M context) for diffs up to 800k chars
       - Set via 'claude-model' input parameter
 
-      Note: ~400k chars fits comfortably in 200k token models (Opus/Sonnet standard).
+      Note: ~400k chars fits comfortably in the default Opus 4.7 model (1M context).
     required: false
     default: '400000'
 
